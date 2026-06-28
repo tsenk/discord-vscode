@@ -1,13 +1,57 @@
-import { debug, env, window, workspace } from 'vscode';
-import {
-	CONFIG_KEYS,
-	CURSOR_IMAGE_KEY,
-	DEBUG_IMAGE_KEY,
-	IDLE_IMAGE_KEY,
-	VSCODE_IMAGE_KEY,
-	VSCODE_INSIDERS_IMAGE_KEY,
-} from './constants';
-import { getConfig, getGit, resolveFileIcon } from './util';
+import { basename } from 'node:path';
+import type { TextDocument } from 'vscode';
+import { debug, env, extensions, window, workspace } from 'vscode';
+import type { API, GitExtension } from './@types/git';
+import LANG from './data/languages.json';
+
+const KNOWN_EXTENSIONS: { [key: string]: { image: string } } = LANG.KNOWN_EXTENSIONS;
+const KNOWN_LANGUAGES: { image: string; language: string }[] = LANG.KNOWN_LANGUAGES;
+
+const IDLE_IMAGE_KEY = 'idle-vscode';
+const DEBUG_IMAGE_KEY = 'debug';
+const VSCODE_IMAGE_KEY = 'vscode';
+const VSCODE_INSIDERS_IMAGE_KEY = 'vscode-insiders';
+const CURSOR_IMAGE_KEY = 'cursor';
+
+let git: API | null | undefined;
+
+async function getGit() {
+	if (git || git === null) return git;
+
+	try {
+		const gitExtension = extensions.getExtension<GitExtension>('vscode.git');
+		if (!gitExtension?.isActive) await gitExtension?.activate();
+
+		// eslint-disable-next-line require-atomic-updates
+		git = gitExtension?.exports.getAPI(1);
+	} catch {
+		// eslint-disable-next-line require-atomic-updates
+		git = null;
+	}
+
+	return git;
+}
+
+function resolveFileIcon(document: TextDocument) {
+	const filename = basename(document.fileName);
+	const findKnownExtension = Object.keys(KNOWN_EXTENSIONS).find((key) => {
+		if (filename.endsWith(key)) return true;
+
+		const match = /^\/(.*)\/([gimy]+)$/.exec(key);
+		if (!match) return false;
+
+		const regex = new RegExp(match[1] as string, match[2] as string);
+		return regex.test(filename);
+	});
+	const findKnownLanguage = KNOWN_LANGUAGES.find((key) => key.language === document.languageId);
+	const fileIcon = findKnownExtension
+		? KNOWN_EXTENSIONS[findKnownExtension]
+		: findKnownLanguage
+			? findKnownLanguage.image
+			: null;
+
+	return typeof fileIcon === 'string' ? fileIcon : (fileIcon?.image ?? 'text');
+}
 
 interface ActivityPayload {
 	buttons?: { label: string; url: string }[] | undefined;
@@ -22,9 +66,8 @@ interface ActivityPayload {
 }
 
 export async function activity(previous: ActivityPayload = {}) {
-	const config = getConfig();
 	const appName = env.appName;
-	const git = await getGit();
+	const gitApi = await getGit();
 
 	const smallImageKey = debug.activeDebugSession
 		? DEBUG_IMAGE_KEY
@@ -34,10 +77,9 @@ export async function activity(previous: ActivityPayload = {}) {
 				? VSCODE_INSIDERS_IMAGE_KEY
 				: VSCODE_IMAGE_KEY;
 
-	// build details line from git info
 	let detailsText = 'Idling';
-	if (git?.repositories.length) {
-		const repo = git.repositories.find((rp) => rp.ui.selected);
+	if (gitApi?.repositories.length) {
+		const repo = gitApi.repositories.find((rp) => rp.ui.selected);
 		const repoName = repo?.state.remotes[0]?.fetchUrl?.split('/')[1]?.replace('.git', '');
 		const branch = repo?.state.HEAD?.name;
 
@@ -48,7 +90,7 @@ export async function activity(previous: ActivityPayload = {}) {
 	let state: ActivityPayload = {
 		type: 0,
 		details: detailsText,
-		startTimestamp: config[CONFIG_KEYS.RemoveTimestamp] ? undefined : (previous.startTimestamp ?? Date.now()),
+		startTimestamp: previous.startTimestamp ?? Date.now(),
 		largeImageKey: IDLE_IMAGE_KEY,
 		largeImageText: 'Idling',
 		smallImageKey,
@@ -56,8 +98,8 @@ export async function activity(previous: ActivityPayload = {}) {
 	};
 
 	// view repository button
-	if (!config[CONFIG_KEYS.RemoveRemoteRepository] && git?.repositories.length) {
-		let repoUrl = git.repositories.find((rp) => rp.ui.selected)?.state.remotes[0]?.fetchUrl;
+	if (gitApi?.repositories.length) {
+		let repoUrl = gitApi.repositories.find((rp) => rp.ui.selected)?.state.remotes[0]?.fetchUrl;
 
 		if (repoUrl) {
 			if (repoUrl.startsWith('git@') || repoUrl.startsWith('ssh://'))
