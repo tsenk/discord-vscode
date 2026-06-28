@@ -1,29 +1,34 @@
 import { basename } from 'node:path';
 import type { TextDocument } from 'vscode';
 import { debug, env, extensions, window, workspace } from 'vscode';
-import type { API, GitExtension } from './@types/git';
 import LANG from './data/languages.json';
 
 const KNOWN_EXTENSIONS: { [key: string]: { image: string } } = LANG.KNOWN_EXTENSIONS;
 const KNOWN_LANGUAGES: { image: string; language: string }[] = LANG.KNOWN_LANGUAGES;
 
-const IDLE_IMAGE_KEY = 'idle-vscode';
-const DEBUG_IMAGE_KEY = 'debug';
-const VSCODE_IMAGE_KEY = 'vscode';
-const VSCODE_INSIDERS_IMAGE_KEY = 'vscode-insiders';
-const CURSOR_IMAGE_KEY = 'cursor';
+interface GitExtension {
+	getAPI(version: 1): { readonly repositories: GitRepository[] };
+}
 
-let git: API | null | undefined;
+interface GitRepository {
+	readonly state: {
+		readonly HEAD: { readonly name?: string } | undefined;
+		readonly remotes: { readonly fetchUrl?: string }[];
+	};
+	readonly ui: { readonly selected: boolean };
+}
+
+let git: { readonly repositories: GitRepository[] } | null | undefined;
 
 async function getGit() {
 	if (git || git === null) return git;
 
 	try {
-		const gitExtension = extensions.getExtension<GitExtension>('vscode.git');
-		if (!gitExtension?.isActive) await gitExtension?.activate();
+		const ext = extensions.getExtension<GitExtension>('vscode.git');
+		if (!ext?.isActive) await ext?.activate();
 
 		// eslint-disable-next-line require-atomic-updates
-		git = gitExtension?.exports.getAPI(1);
+		git = ext?.exports.getAPI(1);
 	} catch {
 		// eslint-disable-next-line require-atomic-updates
 		git = null;
@@ -53,64 +58,47 @@ function resolveFileIcon(document: TextDocument) {
 	return typeof fileIcon === 'string' ? fileIcon : (fileIcon?.image ?? 'text');
 }
 
-interface ActivityPayload {
-	buttons?: { label: string; url: string }[] | undefined;
-	details?: string | undefined;
-	largeImageKey?: string | undefined;
-	largeImageText?: string | undefined;
-	smallImageKey?: string | undefined;
-	smallImageText?: string | undefined;
-	startTimestamp?: number | null | undefined;
-	state?: string | undefined;
-	type?: number | undefined;
-}
-
-export async function activity(previous: ActivityPayload = {}) {
+export async function activity(previous: Record<string, unknown> = {}) {
 	const appName = env.appName;
 	const gitApi = await getGit();
 
 	const smallImageKey = debug.activeDebugSession
-		? DEBUG_IMAGE_KEY
+		? 'debug'
 		: appName.includes('Cursor')
-			? CURSOR_IMAGE_KEY
+			? 'cursor'
 			: appName.includes('Insiders')
-				? VSCODE_INSIDERS_IMAGE_KEY
-				: VSCODE_IMAGE_KEY;
+				? 'vscode-insiders'
+				: 'vscode';
 
 	let detailsText = 'Idling';
-	if (gitApi?.repositories.length) {
-		const repo = gitApi.repositories.find((rp) => rp.ui.selected);
-		const repoName = repo?.state.remotes[0]?.fetchUrl?.split('/')[1]?.replace('.git', '');
-		const branch = repo?.state.HEAD?.name;
+	const repo = gitApi?.repositories.length ? gitApi.repositories.find((rp) => rp.ui.selected) : undefined;
+
+	if (repo) {
+		const repoName = repo.state.remotes[0]?.fetchUrl?.split('/')[1]?.replace('.git', '');
+		const branch = repo.state.HEAD?.name;
 
 		if (repoName && branch) detailsText = `Working on ${repoName} on branch ${branch}`;
 		else if (repoName) detailsText = `Working on ${repoName}`;
 	}
 
-	let state: ActivityPayload = {
+	let state: Record<string, unknown> = {
 		type: 0,
 		details: detailsText,
-		startTimestamp: previous.startTimestamp ?? Date.now(),
-		largeImageKey: IDLE_IMAGE_KEY,
+		startTimestamp: (previous.startTimestamp as number | undefined) ?? Date.now(),
+		largeImageKey: 'idle-vscode',
 		largeImageText: 'Idling',
 		smallImageKey,
 		smallImageText: appName,
 	};
 
 	// view repository button
-	if (gitApi?.repositories.length) {
-		let repoUrl = gitApi.repositories.find((rp) => rp.ui.selected)?.state.remotes[0]?.fetchUrl;
+	let repoUrl = repo?.state.remotes[0]?.fetchUrl;
+	if (repoUrl) {
+		if (repoUrl.startsWith('git@') || repoUrl.startsWith('ssh://'))
+			repoUrl = repoUrl.replace('ssh://', '').replace(':', '/').replace('git@', 'https://').replace('.git', '');
+		else repoUrl = repoUrl.replace(/(https:\/\/)([^@]*)@(.*?$)/, '$1$3').replace('.git', '');
 
-		if (repoUrl) {
-			if (repoUrl.startsWith('git@') || repoUrl.startsWith('ssh://'))
-				repoUrl = repoUrl.replace('ssh://', '').replace(':', '/').replace('git@', 'https://').replace('.git', '');
-			else repoUrl = repoUrl.replace(/(https:\/\/)([^@]*)@(.*?$)/, '$1$3').replace('.git', '');
-
-			state = {
-				...state,
-				buttons: [{ label: 'View Repository', url: repoUrl }],
-			};
-		}
+		state = { ...state, buttons: [{ label: 'View Repository', url: repoUrl }] };
 	}
 
 	if (window.activeTextEditor) {

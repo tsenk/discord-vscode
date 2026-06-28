@@ -49,7 +49,7 @@ const prettierRuleset = merge(...prettier, { files: [`**/*${commonFiles}`] });
 
 export default tseslint.config(
 	{
-		ignores: ['**/node_modules/', '.git/', '**/dist/', '**/coverage/', '**/@types/'],
+		ignores: ['**/node_modules/', '.git/', '**/dist/', '**/coverage/'],
 	},
 	commonRuleset,
 	nodeRuleset,
