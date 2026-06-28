@@ -70,20 +70,17 @@ export async function activity(previous: Record<string, unknown> = {}) {
 				? 'vscode-insiders'
 				: 'vscode';
 
-	let detailsText = 'Idling';
 	const repo = gitApi?.repositories.length ? gitApi.repositories.find((rp) => rp.ui.selected) : undefined;
+	const repoName = repo?.state.remotes[0]?.fetchUrl?.split('/').pop()?.replace('.git', '');
+	const branch = repo?.state.HEAD?.name;
 
-	if (repo) {
-		const repoName = repo.state.remotes[0]?.fetchUrl?.split('/')[1]?.replace('.git', '');
-		const branch = repo.state.HEAD?.name;
-
-		if (repoName && branch) detailsText = `Working on ${repoName} on branch ${branch}`;
-		else if (repoName) detailsText = `Working on ${repoName}`;
-	}
+	let details = 'Idling';
+	if (repoName && branch) details = `Working on ${repoName} on branch ${branch}`;
+	else if (repoName) details = `Working on ${repoName}`;
 
 	let state: Record<string, unknown> = {
 		type: 0,
-		details: detailsText,
+		details,
 		startTimestamp: (previous.startTimestamp as number | undefined) ?? Date.now(),
 		largeImageKey: 'idle-vscode',
 		largeImageText: 'Idling',
@@ -106,8 +103,11 @@ export async function activity(previous: Record<string, unknown> = {}) {
 		const relativePath = workspace.asRelativePath(window.activeTextEditor.document.fileName);
 		const action = debug.activeDebugSession ? 'Debugging' : 'Editing';
 
+		if (details === 'Idling') details = action;
+
 		state = {
 			...state,
+			details,
 			largeImageKey,
 			largeImageText: `${action} a ${largeImageKey.toLocaleUpperCase()} file`,
 			state: `${action} ${relativePath}`,
