@@ -25,8 +25,8 @@
 		"resolvePackageJsonImports": true,
 
 		// Emit
-		"declaration": true,
-		"declarationMap": true,
+		"declaration": false,
+		"declarationMap": false,
 		"importHelpers": false,
 		"newLine": "lf",
 		"noEmitHelpers": true,

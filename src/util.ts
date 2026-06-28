@@ -8,36 +8,17 @@ import { log, LogLevel } from './logger';
 let git: API | null | undefined;
 
 type WorkspaceExtensionConfiguration = WorkspaceConfiguration & {
-	detailsDebugging: string;
-	detailsEditing: string;
-	detailsIdling: string;
 	enabled: boolean;
 	idleTimeout: number;
-	largeImage: string;
-	largeImageIdling: string;
-	lowerDetailsDebugging: string;
-	lowerDetailsEditing: string;
-	lowerDetailsIdling: string;
-	lowerDetailsNoWorkspaceFound: string;
-	removeDetails: boolean;
-	removeLowerDetails: boolean;
 	removeRemoteRepository: boolean;
 	removeTimestamp: boolean;
-	smallImage: string;
 	suppressNotifications: boolean;
-	swapBigAndSmallImage: boolean;
 	workspaceExcludePatterns: string[];
 };
 
 export function getConfig() {
 	return workspace.getConfiguration('discord') as WorkspaceExtensionConfiguration;
 }
-
-export const toLower = (str: string) => str.toLocaleLowerCase();
-
-export const toUpper = (str: string) => str.toLocaleUpperCase();
-
-export const toTitle = (str: string) => toLower(str).replace(/^\w/, (char) => toUpper(char));
 
 export function resolveFileIcon(document: TextDocument) {
 	const filename = basename(document.fileName);

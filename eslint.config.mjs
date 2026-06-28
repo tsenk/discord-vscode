@@ -18,7 +18,7 @@ const typeScriptRuleset = merge(...typescript, {
 		parserOptions: {
 			warnOnUnsupportedTypeScriptVersion: false,
 			allowAutomaticSingleRunInference: true,
-			project: ['tsconfig.eslint.json', 'apps/*/tsconfig.eslint.json', 'packages/*/tsconfig.eslint.json'],
+			project: ['tsconfig.eslint.json'],
 		},
 	},
 	rules: {
@@ -39,7 +39,7 @@ const typeScriptRuleset = merge(...typescript, {
 		'import-x/resolver-next': [
 			createTypeScriptImportResolver({
 				noWarnOnMultipleProjects: true,
-				project: ['tsconfig.eslint.json', 'apps/*/tsconfig.eslint.json', 'packages/*/tsconfig.eslint.json'],
+				project: ['tsconfig.eslint.json'],
 			}),
 		],
 	},
