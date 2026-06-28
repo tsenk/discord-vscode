@@ -1,5 +1,4 @@
 import { Client } from '@xhayper/discord-rpc';
-import throttle from 'lodash-es/throttle';
 import type { ExtensionContext, StatusBarItem } from 'vscode';
 import { commands, StatusBarAlignment, window, workspace, debug } from 'vscode';
 import { activity } from './activity';
@@ -7,13 +6,15 @@ import { CLIENT_ID, CONFIG_KEYS } from './constants';
 import { log, LogLevel } from './logger';
 import { getConfig, getGit } from './util';
 
-const statusBarIcon: StatusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
+const statusBarIcon: StatusBarItem = window.createStatusBarItem('discord.statusbar', StatusBarAlignment.Left);
+statusBarIcon.name = 'Discord Presence';
 statusBarIcon.text = '$(pulse) Connecting to Discord...';
 
 let rpc = new Client({ transport: { type: 'ipc' }, clientId: CLIENT_ID });
 const config = getConfig();
 
 let state = {};
+let focused = true;
 let idle: NodeJS.Timeout | undefined;
 let listeners: { dispose(): any }[] = [];
 
@@ -23,6 +24,8 @@ export function cleanUp() {
 }
 
 async function sendActivity() {
+	if (!focused) return;
+
 	// eslint-disable-next-line require-atomic-updates
 	state = {
 		...(await activity(state)),
@@ -40,19 +43,20 @@ async function login() {
 
 		statusBarIcon.text = '$(globe) Connected to Discord';
 		statusBarIcon.tooltip = 'Connected to Discord';
+		statusBarIcon.command = 'discord.disconnect';
 
 		void sendActivity();
 		const onChangeActiveTextEditor = window.onDidChangeActiveTextEditor(async () => sendActivity());
-		const onChangeTextDocument = workspace.onDidChangeTextDocument(throttle(async () => sendActivity(), 2_000));
 		const onStartDebugSession = debug.onDidStartDebugSession(async () => sendActivity());
 		const onTerminateDebugSession = debug.onDidTerminateDebugSession(async () => sendActivity());
 
-		listeners.push(onChangeActiveTextEditor, onChangeTextDocument, onStartDebugSession, onTerminateDebugSession);
+		listeners.push(onChangeActiveTextEditor, onStartDebugSession, onTerminateDebugSession);
 	});
 
 	rpc.on('disconnected', () => {
 		cleanUp();
 		void rpc.destroy();
+
 		statusBarIcon.text = '$(pulse) Reconnect to Discord';
 		statusBarIcon.command = 'discord.reconnect';
 	});
@@ -113,6 +117,7 @@ export async function activate(context: ExtensionContext) {
 		log(LogLevel.Info, 'Disable: Cleaning up old listeners');
 		cleanUp();
 		void rpc?.destroy();
+
 		log(LogLevel.Info, 'Disable: Destroyed the rpc instance');
 		statusBarIcon.hide();
 	};
@@ -148,17 +153,27 @@ export async function activate(context: ExtensionContext) {
 	}
 
 	window.onDidChangeWindowState(async (windowState) => {
-		if (config[CONFIG_KEYS.IdleTimeout] !== 0) {
-			if (windowState.focused) {
-				if (idle) {
-					// eslint-disable-next-line no-restricted-globals
-					clearTimeout(idle);
-				}
+		if (windowState.focused) {
+			log(LogLevel.Info, 'Window focused');
+			focused = true;
 
-				await sendActivity();
-			} else {
+			if (idle) {
+				// eslint-disable-next-line no-restricted-globals
+				clearTimeout(idle);
+				idle = undefined;
+			}
+
+			state = {};
+			await sendActivity();
+		} else if (focused) {
+			log(LogLevel.Info, 'Window unfocused');
+			focused = false;
+
+			if (config[CONFIG_KEYS.IdleTimeout] !== 0) {
+				log(LogLevel.Info, `Idle timeout set for ${config[CONFIG_KEYS.IdleTimeout]}s, clearing presence after`);
 				// eslint-disable-next-line no-restricted-globals
 				idle = setTimeout(async () => {
+					log(LogLevel.Info, 'Idle timeout reached, clearing presence');
 					state = {};
 					await rpc.user?.clearActivity();
 				}, config[CONFIG_KEYS.IdleTimeout] * 1_000);

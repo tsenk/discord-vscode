@@ -8,7 +8,7 @@
 	"publisher": "icrawl",
 	"scripts": {
 		"build:check": "tsc --noEmit",
-		"build": "pnpm run lint && node esbuild.mjs",
+		"build": "pnpm run fmt && node esbuild.mjs && vsce package --no-dependencies --allow-star-activation",
 		"dev": "node esbuild.mjs --watch",
 		"lint": "pnpm run build:check && prettier --check . && cross-env TIMING=1 eslint --format=pretty src ",
 		"format": "pnpm run build:check && prettier --write . && cross-env TIMING=1 eslint --fix --format=pretty src ",
@@ -210,7 +210,7 @@
 					},
 					"discord.idleTimeout": {
 						"type": "number",
-						"default": 0,
+						"default": 1800,
 						"description": "Time (in seconds) to clear the presence when idling. 0 (the default) means no clearing"
 					}
 				}
