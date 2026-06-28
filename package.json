@@ -5,7 +5,7 @@
 	"version": "5.9.2",
 	"description": "Update your discord status with a rich presence.",
 	"private": true,
-	"publisher": "icrawl",
+	"publisher": "tsenk",
 	"scripts": {
 		"build:check": "tsc --noEmit",
 		"build": "pnpm run fmt && node esbuild.mjs && vsce package --no-dependencies --allow-star-activation",
@@ -14,15 +14,9 @@
 	"type": "commonjs",
 	"main": "./dist/extension.cjs",
 	"author": {
-		"name": "iCrawl",
-		"email": "icrawltogo@gmail.com"
+		"name": "Michal Kozel",
+		"email": "michaelkozel@proton.me"
 	},
-	"contributors": [
-		{
-			"name": "Frangu Vlad",
-			"email": "kingdgrizzle@gmail.com"
-		}
-	],
 	"license": "MIT",
 	"keywords": [
 		"discord",
@@ -37,12 +31,12 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/iCrawl/discord-vscode.git"
+		"url": "https://github.com/tsenk/discord-vscode.git"
 	},
 	"bugs": {
-		"url": "https://github.com/iCrawl/discord-vscode/issues"
+		"url": "https://github.com/tsenk/discord-vscode/issues"
 	},
-	"homepage": "https://github.com/iCrawl/discord-vscode#readme",
+	"homepage": "https://github.com/tsenk/discord-vscode#readme",
 	"dependencies": {
 		"@xhayper/discord-rpc": "^1.2.1"
 	},
